@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ACA Calc" />
+  <meta name="theme-color" content="#0F3D37" />
+  <title>ACA Eligibility Calculator — Wabash Center</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { -webkit-font-smoothing: antialiased; background: #F5FAFA; font-family: Georgia, serif; }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+    select { -webkit-appearance: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const C = {
+      teal: "#2A7A6F", tealDark: "#1B5C53", tealDeep: "#0F3D37",
+      tealLight: "#E6F4F2", tealMid: "#4A9E92", white: "#FFFFFF",
+      offWhite: "#F5FAFA", text: "#1A2E2B", textLight: "#4A6260",
+      border: "#B8D9D5", warning: "#E07B39", warningLight: "#FEF3EC",
+      error: "#C0392B", errorLight: "#FDECEA", gray: "#8FA8A5",
+    };
+
+    function addMonths(date, n) {
+      const d = new Date(date); d.setMonth(d.getMonth() + n); return d;
+    }
+    function addDays(date, n) {
+      const d = new Date(date); d.setDate(d.getDate() + n); return d;
+    }
+    function fmt(d) {
+      return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    }
+    function getSMP(date) {
+      const m = date.getMonth();
+      return m <= 5
+        ? { label: "January–June", start: new Date(date.getFullYear(), 0, 1), end: new Date(date.getFullYear(), 5, 30) }
+        : { label: "July–December", start: new Date(date.getFullYear(), 6, 1), end: new Date(date.getFullYear(), 11, 31) };
+    }
+
+    function calcNewHire(hireDate, avgHours) {
+      const hire = new Date(hireDate);
+      if (avgHours >= 30) return {
+        type: "full_time", hireDate: hire,
+        notes: "Employee is expected to average 30+ hours/week. Benefits must be offered at hire.",
+      };
+      const impEnd = addMonths(hire, 3);
+      const ispEnd = addMonths(hire, 6);
+      const offerDeadline = addMonths(hire, 7);
+      const today = new Date();
+      const daysUntil = Math.round((offerDeadline - today) / 86400000);
+      return {
+        type: "variable", hireDate: hire, impEnd, ispEnd, offerDeadline, daysUntil,
+        timeline: [
+          { label: "Hire Date", date: hire, desc: "Clock starts" },
+          { label: "IMP Ends", date: impEnd, desc: "Initial Measurement Period closes (3 mo)" },
+          { label: "ISP Ends", date: ispEnd, desc: "Initial Stability Period ends (6 mo)" },
+          { label: "Offer Deadline", date: offerDeadline, desc: "Offer coverage by this date if eligible (~1 mo admin)" },
+        ],
+      };
+    }
+
+    function calcOngoing() {
+      const today = new Date();
+      const smp = getSMP(today);
+      const adminEnd = addMonths(smp.end, 1);
+      const stabilityStart = addDays(adminEnd, 1);
+      const stabilityEnd = addMonths(stabilityStart, 6);
+      return {
+        type: "ongoing", smp, adminEnd, stabilityStart, stabilityEnd,
+        timeline: [
+          { label: "Current SMP", date: smp.start, dateEnd: smp.end, desc: `Standard Measurement Period: ${smp.label}` },
+          { label: "Admin Period Ends", date: adminEnd, desc: "Finalize eligibility determinations" },
+          { label: "Stability Period Starts", date: stabilityStart, desc: "Coverage offer must be in place" },
+          { label: "Stability Period Ends", date: stabilityEnd, desc: "6-month stability window closes" },
+        ],
+      };
+    }
+
+    function calcBreak(weeks) {
+      const w = parseInt(weeks);
+      if (w < 4) return { weeks: w, outcome: "no_break", detail: "Less than 4 weeks — no break in service recognized.", treatment: "Employee retains prior hours of service. Continue prior measurement period." };
+      if (w < 13) return { weeks: w, outcome: "parity", detail: `${w} weeks — parity rule applies.`, treatment: "Break cannot exceed prior employment length. If it does, treat as new employee. Otherwise retain prior credited hours." };
+      return { weeks: w, outcome: "new_employee", detail: "13+ weeks — treated as a new employee.", treatment: "Restart IMP/ISP from return date. Apply new hire ACA rules." };
+    }
+
+    const Badge = ({ type, text }) => {
+      const s = {
+        action: { bg: C.tealLight, color: C.tealDark, border: C.border, icon: "✓ " },
+        urgent: { bg: C.warningLight, color: C.warning, border: "#F0C090", icon: "⚠ " },
+        overdue: { bg: C.errorLight, color: C.error, border: "#F5C6C2", icon: "🔴 " },
+      }[type] || { bg: C.offWhite, color: C.textLight, border: C.border, icon: "" };
+      return <div style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginTop: 6 }}>{s.icon}{text}</div>;
+    };
+
+    const TimelineRow = ({ item, last }) => (
+      <div style={{ display: "flex", gap: 16, marginBottom: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 20 }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: C.teal, border: `2px solid ${C.tealMid}`, marginTop: 3, flexShrink: 0 }} />
+          {!last && <div style={{ width: 2, flexGrow: 1, background: C.border, marginTop: 2 }} />}
+        </div>
+        <div style={{ paddingBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: C.tealDark }}>{item.label}</div>
+          <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{fmt(item.date)}{item.dateEnd ? ` – ${fmt(item.dateEnd)}` : ""}</div>
+          <div style={{ fontSize: 12, color: C.textLight, marginTop: 1 }}>{item.desc}</div>
+        </div>
+      </div>
+    );
+
+    const Card = ({ children, accent }) => (
+      <div style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, borderLeft: accent ? `4px solid ${accent}` : `1px solid ${C.border}`, boxShadow: "0 2px 12px rgba(42,122,111,0.07)", padding: 24, marginTop: 20 }}>
+        {children}
+      </div>
+    );
+
+    const Label = ({ children }) => (
+      <label style={{ display: "block", fontWeight: 600, fontSize: 13, color: C.tealDark, marginBottom: 6, letterSpacing: 0.3 }}>{children}</label>
+    );
+
+    const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 14, color: C.text, background: C.offWhite, outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" };
+
+    function Result({ result }) {
+      if (!result) return null;
+
+      if (result.type === "full_time") return (
+        <Card accent={C.teal}>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.tealDark, marginBottom: 8 }}>Full-Time — Benefits-Eligible at Hire</div>
+          <p style={{ fontSize: 14, color: C.text, margin: "0 0 12px", lineHeight: 1.6 }}>{result.notes}</p>
+          <Badge type="action" text="Offer health insurance at time of hire" />
+        </Card>
+      );
+
+      if (result.type === "variable") {
+        const urgent = result.daysUntil <= 30 && result.daysUntil > 0;
+        const overdue = result.daysUntil <= 0;
+        return (
+          <Card accent={C.tealMid}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: C.tealDark, marginBottom: 4 }}>Variable-Hour New Hire — Measurement Required</div>
+            <p style={{ fontSize: 13, color: C.textLight, margin: "0 0 12px", lineHeight: 1.6 }}>Employee must be measured during the Initial Measurement Period before offering coverage.</p>
+            {urgent && <Badge type="urgent" text={`Offer deadline in ${result.daysUntil} days — act now`} />}
+            {overdue && <Badge type="overdue" text="Offer window may have passed — review immediately" />}
+            <div style={{ marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: C.gray, letterSpacing: 1, marginBottom: 12, textTransform: "uppercase", fontFamily: "sans-serif" }}>Timeline</div>
+              {result.timeline.map((item, i) => <TimelineRow key={i} item={item} last={i === result.timeline.length - 1} />)}
+            </div>
+            {result.daysUntil > 0 && <div style={{ background: C.tealLight, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: C.tealDark, fontWeight: 600, marginTop: 8 }}>{result.daysUntil} days until offer deadline</div>}
+          </Card>
+        );
+      }
+
+      if (result.type === "ongoing") return (
+        <Card accent={C.tealMid}>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.tealDark, marginBottom: 4 }}>Ongoing Employee — Current Period: {result.smp.label}</div>
+          <p style={{ fontSize: 13, color: C.textLight, margin: "0 0 16px", lineHeight: 1.6 }}>Active measurement and stability windows based on today's date.</p>
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: C.gray, letterSpacing: 1, marginBottom: 12, textTransform: "uppercase", fontFamily: "sans-serif" }}>Timeline</div>
+            {result.timeline.map((item, i) => <TimelineRow key={i} item={item} last={i === result.timeline.length - 1} />)}
+          </div>
+        </Card>
+      );
+
+      if (result.type === "break") {
+        const oc = { no_break: [C.teal, C.tealLight], parity: [C.warning, C.warningLight], new_employee: [C.error, C.errorLight] }[result.outcome];
+        return (
+          <Card accent={oc[0]}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: C.tealDark, marginBottom: 8 }}>Break-in-Service: {result.weeks} Weeks</div>
+            <div style={{ background: oc[1], borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: oc[0] }}>{result.detail}</div>
+              <div style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.6 }}>{result.treatment}</div>
+            </div>
+            {result.outcome === "new_employee" && <Badge type="urgent" text="Restart IMP/ISP — use New Hire tab above" />}
+          </Card>
+        );
+      }
+      return null;
+    }
+
+    function App() {
+      const [tab, setTab] = React.useState("new_hire");
+      const [hireDate, setHireDate] = React.useState("");
+      const [avgHours, setAvgHours] = React.useState("");
+      const [breakWeeks, setBreakWeeks] = React.useState("");
+      const [result, setResult] = React.useState(null);
+
+      const tabs = [
+        { id: "new_hire", label: "New Hire" },
+        { id: "ongoing", label: "Ongoing" },
+        { id: "break", label: "Break in Service" },
+      ];
+
+      const calc = () => {
+        if (tab === "new_hire" && hireDate && avgHours) setResult(calcNewHire(hireDate, parseFloat(avgHours)));
+        else if (tab === "ongoing") setResult(calcOngoing());
+        else if (tab === "break" && breakWeeks) setResult({ type: "break", ...calcBreak(breakWeeks) });
+      };
+
+      const btnDisabled = (tab === "new_hire" && (!hireDate || !avgHours)) || (tab === "break" && !breakWeeks);
+
+      return (
+        <div style={{ minHeight: "100vh", background: C.offWhite, fontFamily: "Georgia, serif" }}>
+          {/* Header */}
+          <div style={{ background: C.tealDeep }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", padding: "20px 20px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: C.teal, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏥</div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.tealMid, letterSpacing: 2, textTransform: "uppercase", fontFamily: "sans-serif", fontWeight: 600 }}>Wabash Center — HR Tools</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: C.white, lineHeight: 1.2 }}>ACA Eligibility Calculator</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 2 }}>
+                {tabs.map(t => (
+                  <button key={t.id} onClick={() => { setTab(t.id); setResult(null); }} style={{ background: tab === t.id ? C.white : "transparent", color: tab === t.id ? C.tealDark : C.tealMid, border: "none", borderRadius: "8px 8px 0 0", padding: "9px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 20px 60px" }}>
+            <div style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.border}`, boxShadow: "0 2px 12px rgba(42,122,111,0.07)", padding: 24 }}>
+
+              {tab === "new_hire" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.tealDark, marginBottom: 4 }}>New Hire Eligibility</div>
+                <p style={{ fontSize: 13, color: C.textLight, margin: "0 0 20px", lineHeight: 1.6 }}>30+ expected hours = offer at hire. Under 30 = enters IMP/ISP measurement track.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                  <div><Label>Hire Date</Label><input type="date" value={hireDate} onChange={e => setHireDate(e.target.value)} style={inputStyle} /></div>
+                  <div><Label>Avg Weekly Hours</Label><input type="number" placeholder="e.g. 25" value={avgHours} onChange={e => setAvgHours(e.target.value)} min={0} max={60} step={0.5} style={inputStyle} /></div>
+                </div>
+              </>)}
+
+              {tab === "ongoing" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.tealDark, marginBottom: 4 }}>Ongoing Employee Periods</div>
+                <p style={{ fontSize: 13, color: C.textLight, margin: "0 0 20px", lineHeight: 1.6 }}>Shows the current Standard Measurement Period, admin window, and stability period based on today's date and Wabash's Jan–Jun / Jul–Dec SMP structure.</p>
+              </>)}
+
+              {tab === "break" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.tealDark, marginBottom: 4 }}>Break-in-Service Rules</div>
+                <p style={{ fontSize: 13, color: C.textLight, margin: "0 0 20px", lineHeight: 1.6 }}>Enter break length to determine treatment upon return.</p>
+                <div style={{ marginBottom: 16, background: C.tealLight, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.tealDark, lineHeight: 1.8 }}>
+                  &lt;4 weeks → No break recognized<br />4–12 weeks → Parity rule<br />13+ weeks → New employee
+                </div>
+                <div style={{ maxWidth: 220, marginBottom: 20 }}>
+                  <Label>Break Length (Weeks)</Label>
+                  <input type="number" placeholder="e.g. 6" value={breakWeeks} onChange={e => setBreakWeeks(e.target.value)} min={1} max={52} style={inputStyle} />
+                </div>
+              </>)}
+
+              <button onClick={calc} disabled={btnDisabled} style={{ background: btnDisabled ? C.gray : C.teal, color: C.white, border: "none", borderRadius: 8, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: btnDisabled ? "not-allowed" : "pointer", fontFamily: "sans-serif", letterSpacing: 0.3 }}>
+                {tab === "ongoing" ? "Show Current Periods →" : "Calculate →"}
+              </button>
+            </div>
+
+            <Result result={result} />
+
+            <div style={{ marginTop: 28, padding: "12px 16px", background: C.white, borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 11, color: C.gray, lineHeight: 1.6, fontFamily: "sans-serif" }}>
+              <strong>Note:</strong> Reflects Wabash Center's internal ACA thresholds (IMP 3 mo, ISP 6 mo, SMP Jan–Jun / Jul–Dec, Stability 6 mo). Confirm edge cases with HR leadership. Not legal advice.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+
+</body>
+</html>
