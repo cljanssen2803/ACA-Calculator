@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ACA Calc" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0F3D37" />
+  <meta name="description" content="ACA Eligibility Calculator — Wabash Center HR Tools" />
+  <title>ACA Eligibility Calculator — Wabash Center</title>
+
+  <!-- App icons for home screen (iOS + Android) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230F3D37'/><text x='50' y='62' text-anchor='middle' font-size='48'>🏥</text></svg>" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Light mode defaults */
+    :root {
+      --teal: #2A7A6F; --tealDark: #1B5C53; --tealDeep: #0F3D37;
+      --tealLight: #E6F4F2; --tealMid: #4A9E92; --white: #FFFFFF;
+      --offWhite: #F5FAFA; --text: #1A2E2B; --textLight: #4A6260;
+      --border: #B8D9D5; --warning: #E07B39; --warningLight: #FEF3EC;
+      --error: #C0392B; --errorLight: #FDECEA; --gray: #8FA8A5;
+      --cardBg: #FFFFFF; --bodyBg: #F5FAFA; --inputBg: #F5FAFA;
+    }
+
+    /* Dark mode */
+    [data-theme="dark"] {
+      --teal: #4ABFB0; --tealDark: #8DD8CC; --tealDeep: #0A2A25;
+      --tealLight: #13332E; --tealMid: #5CC4B5; --white: #1A2E2B;
+      --offWhite: #0E1F1D; --text: #D4E8E5; --textLight: #8FB5B0;
+      --border: #2A4A45; --warning: #F0944A; --warningLight: #2A1F14;
+      --error: #E8584A; --errorLight: #2A1614; --gray: #6A8E8A;
+      --cardBg: #152623; --bodyBg: #0E1F1D; --inputBg: #1A332F;
+    }
+
+    body {
+      -webkit-font-smoothing: antialiased;
+      background: var(--bodyBg);
+      font-family: Georgia, serif;
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+      /* Prevent pull-to-refresh on mobile for app feel */
+      overscroll-behavior-y: contain;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+    select { -webkit-appearance: none; }
+
+    /* Safe area padding for notched phones */
+    @supports (padding-top: env(safe-area-inset-top)) {
+      .app-header { padding-top: calc(env(safe-area-inset-top) + 12px) !important; }
+      .app-footer { padding-bottom: calc(env(safe-area-inset-bottom) + 12px) !important; }
+    }
+
+    /* Tooltip styles */
+    .tooltip-trigger { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--tealLight); color: var(--teal); font-size: 10px; font-weight: 700; cursor: help; margin-left: 5px; font-family: sans-serif; border: 1px solid var(--border); vertical-align: middle; }
+    .tooltip-trigger:hover .tooltip-box, .tooltip-trigger:focus .tooltip-box { display: block; }
+    .tooltip-box { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--tealDeep); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-weight: 400; line-height: 1.5; width: 240px; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.2); font-family: sans-serif; }
+    .tooltip-box::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--tealDeep); }
+
+    /* Print styles */
+    @media print {
+      body { background: #fff !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .app-header { background: #fff !important; color: #000 !important; border-bottom: 2px solid #ccc; }
+      .app-header * { color: #000 !important; }
+    }
+    .print-only { display: none; }
+
+    /* Smooth transitions for dark mode */
+    .card-transition { transition: background 0.3s, border-color 0.3s, color 0.3s; }
+
+    /* Toast notification */
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--tealDeep); color: #fff; padding: 12px 24px; border-radius: 10px; font-size: 13px; font-family: sans-serif; font-weight: 600; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: toastIn 0.3s ease, toastOut 0.3s ease 2s forwards; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+    /* Bottom nav for app feel */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--cardBg); border-top: 1px solid var(--border); display: flex; z-index: 50; transition: background 0.3s, border-color 0.3s; }
+    .bottom-nav button { flex: 1; padding: 10px 4px 14px; background: none; border: none; font-size: 10px; font-family: sans-serif; font-weight: 600; color: var(--gray); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: color 0.2s; }
+    .bottom-nav button.active { color: var(--teal); }
+    .bottom-nav button .nav-icon { font-size: 20px; }
+
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      .bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+    }
+
+    /* Haptic-style button press */
+    .btn-press:active { transform: scale(0.97); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    /* ───────── color tokens (used in JS where CSS vars aren't convenient) ───────── */
+    const C = {
+      teal: "#2A7A6F", tealDark: "#1B5C53", tealDeep: "#0F3D37",
+      tealLight: "#E6F4F2", tealMid: "#4A9E92", white: "#FFFFFF",
+      offWhite: "#F5FAFA", text: "#1A2E2B", textLight: "#4A6260",
+      border: "#B8D9D5", warning: "#E07B39", warningLight: "#FEF3EC",
+      error: "#C0392B", errorLight: "#FDECEA", gray: "#8FA8A5",
+    };
+
+    /* ───────── date helpers ───────── */
+    function addMonths(date, n) { const d = new Date(date); d.setMonth(d.getMonth() + n); return d; }
+    function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
+    function fmt(d) { return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }); }
+    function fmtShort(d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+    function fmtISO(d) { return d.toISOString().split("T")[0]; }
+
+    function getSMP(date) {
+      const m = date.getMonth();
+      return m <= 5
+        ? { label: "January\u2013June", start: new Date(date.getFullYear(), 0, 1), end: new Date(date.getFullYear(), 5, 30) }
+        : { label: "July\u2013December", start: new Date(date.getFullYear(), 6, 1), end: new Date(date.getFullYear(), 11, 31) };
+    }
+
+    /* ───────── ACA calculation logic ───────── */
+    function calcNewHire(hireDate, avgHours) {
+      const hire = new Date(hireDate);
+      if (avgHours >= 30) return {
+        type: "full_time", hireDate: hire,
+        notes: "Employee is expected to average 30+ hours/week. Benefits must be offered at hire.",
+        summary: "Full-Time \u2014 Benefits-Eligible at Hire. Offer health insurance at time of hire.",
+      };
+      const impEnd = addMonths(hire, 3);
+      const ispEnd = addMonths(hire, 6);
+      const offerDeadline = addMonths(hire, 7);
+      const today = new Date();
+      const daysUntil = Math.round((offerDeadline - today) / 86400000);
+      return {
+        type: "variable", hireDate: hire, impEnd, ispEnd, offerDeadline, daysUntil,
+        summary: `Variable-Hour New Hire. IMP ends ${fmtShort(impEnd)}, ISP ends ${fmtShort(ispEnd)}, offer deadline ${fmtShort(offerDeadline)} (${daysUntil} days).`,
+        timeline: [
+          { label: "Hire Date", date: hire, desc: "Clock starts" },
+          { label: "IMP Ends", date: impEnd, desc: "Initial Measurement Period closes (3 mo)" },
+          { label: "ISP Ends", date: ispEnd, desc: "Initial Stability Period ends (6 mo)" },
+          { label: "Offer Deadline", date: offerDeadline, desc: "Offer coverage by this date if eligible (~1 mo admin)" },
+        ],
+      };
+    }
+
+    function calcOngoing() {
+      const today = new Date();
+      const smp = getSMP(today);
+      const adminEnd = addMonths(smp.end, 1);
+      const stabilityStart = addDays(adminEnd, 1);
+      const stabilityEnd = addMonths(stabilityStart, 6);
+      return {
+        type: "ongoing", smp, adminEnd, stabilityStart, stabilityEnd,
+        summary: `Ongoing Employee. Current SMP: ${smp.label}. Admin ends ${fmtShort(adminEnd)}. Stability ${fmtShort(stabilityStart)} \u2013 ${fmtShort(stabilityEnd)}.`,
+        timeline: [
+          { label: "Current SMP", date: smp.start, dateEnd: smp.end, desc: `Standard Measurement Period: ${smp.label}` },
+          { label: "Admin Period Ends", date: adminEnd, desc: "Finalize eligibility determinations" },
+          { label: "Stability Period Starts", date: stabilityStart, desc: "Coverage offer must be in place" },
+          { label: "Stability Period Ends", date: stabilityEnd, desc: "6-month stability window closes" },
+        ],
+      };
+    }
+
+    function calcBreak(weeks) {
+      const w = parseInt(weeks);
+      if (w < 4) return { weeks: w, outcome: "no_break", detail: "Less than 4 weeks \u2014 no break in service recognized.", treatment: "Employee retains prior hours of service. Continue prior measurement period.", summary: `Break: ${w} weeks \u2014 no break recognized. Retain prior hours.` };
+      if (w < 13) return { weeks: w, outcome: "parity", detail: `${w} weeks \u2014 parity rule applies.`, treatment: "Break cannot exceed prior employment length. If it does, treat as new employee. Otherwise retain prior credited hours.", summary: `Break: ${w} weeks \u2014 parity rule. Check against prior employment length.` };
+      return { weeks: w, outcome: "new_employee", detail: "13+ weeks \u2014 treated as a new employee.", treatment: "Restart IMP/ISP from return date. Apply new hire ACA rules.", summary: `Break: ${w} weeks \u2014 new employee. Restart IMP/ISP from return.` };
+    }
+
+    /* ───────── calendar link helpers ───────── */
+    function makeGoogleCalUrl(title, date, desc) {
+      const d = fmtISO(date).replace(/-/g, "");
+      const next = fmtISO(addDays(date, 1)).replace(/-/g, "");
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${d}/${next}&details=${encodeURIComponent(desc)}`;
+    }
+    function makeICSData(title, date, desc) {
+      const d = fmtISO(date).replace(/-/g, "");
+      const next = fmtISO(addDays(date, 1)).replace(/-/g, "");
+      return `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:${d}\nDTEND;VALUE=DATE:${next}\nSUMMARY:${title}\nDESCRIPTION:${desc}\nEND:VEVENT\nEND:VCALENDAR`;
+    }
+    function downloadICS(title, date, desc) {
+      const blob = new Blob([makeICSData(title, date, desc)], { type: "text/calendar" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = `${title.replace(/[^a-zA-Z0-9]/g, "_")}.ics`; a.click();
+    }
+
+    /* ───────── localStorage history helpers ───────── */
+    const HISTORY_KEY = "aca_calc_history";
+    function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
+    function saveToHistory(entry) {
+      const hist = loadHistory();
+      // Add timestamp and keep last 50 entries
+      hist.unshift({ ...entry, timestamp: new Date().toISOString() });
+      if (hist.length > 50) hist.length = 50;
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+    }
+    function clearHistory() { localStorage.removeItem(HISTORY_KEY); }
+
+    /* ───────── theme helpers ───────── */
+    function getInitialTheme() {
+      const saved = localStorage.getItem("aca_theme");
+      if (saved) return saved;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    /* ───────── tooltip component ───────── */
+    const Tooltip = ({ term, children }) => (
+      <span className="tooltip-trigger" tabIndex={0} role="button" aria-label={`What is ${term}?`}>
+        ?<span className="tooltip-box">{children}</span>
+      </span>
+    );
+
+    /* ───────── ACA term definitions ───────── */
+    const TERMS = {
+      IMP: "Initial Measurement Period (IMP): The first window (3 months at Wabash) where a new variable-hour employee's hours are tracked to see if they average 30+/week.",
+      ISP: "Initial Stability Period (ISP): The 6-month window after the IMP where the employee keeps whatever eligibility status was determined.",
+      SMP: "Standard Measurement Period (SMP): The recurring window used for ongoing employees. Wabash uses Jan\u2013Jun and Jul\u2013Dec.",
+      Stability: "Stability Period: After each measurement period, the employee's benefits eligibility is locked in for this window (6 months at Wabash).",
+      Admin: "Administrative Period: A short buffer (about 1 month) between measurement and stability periods to finalize eligibility decisions and notify employees.",
+      Parity: "Parity Rule: For breaks of 4\u201312 weeks, the break can't exceed the employee's prior employment length. If it does, they're treated as new.",
+    };
+
+    /* ───────── UI components ───────── */
+    const Badge = ({ type, text }) => {
+      const s = {
+        action: { bg: "var(--tealLight)", color: "var(--teal)", border: "var(--border)", icon: "\u2713 " },
+        urgent: { bg: "var(--warningLight)", color: "var(--warning)", border: "#F0C090", icon: "\u26A0 " },
+        overdue: { bg: "var(--errorLight)", color: "var(--error)", border: "#F5C6C2", icon: "\uD83D\uDD34 " },
+      }[type] || { bg: "var(--offWhite)", color: "var(--textLight)", border: "var(--border)", icon: "" };
+      return <div style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, display: "inline-block", marginTop: 6 }}>{s.icon}{text}</div>;
+    };
+
+    const TimelineRow = ({ item, last, employeeName }) => {
+      const calTitle = `ACA: ${item.label}` + (employeeName ? ` \u2014 ${employeeName}` : "");
+      const calDesc = item.desc + (employeeName ? ` (Employee: ${employeeName})` : "");
+      return (
+        <div style={{ display: "flex", gap: 16, marginBottom: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 20 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--teal)", border: "2px solid var(--tealMid)", marginTop: 3, flexShrink: 0 }} />
+            {!last && <div style={{ width: 2, flexGrow: 1, background: "var(--border)", marginTop: 2 }} />}
+          </div>
+          <div style={{ paddingBottom: 14, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: "var(--tealDark)" }}>{item.label}</div>
+              {/* Calendar reminder buttons */}
+              <div className="no-print" style={{ display: "flex", gap: 4 }}>
+                <a href={makeGoogleCalUrl(calTitle, item.date, calDesc)} target="_blank" rel="noopener" title="Add to Google Calendar" style={{ fontSize: 11, color: "var(--teal)", textDecoration: "none", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", fontFamily: "sans-serif", fontWeight: 600 }}>GCal</a>
+                <button onClick={() => downloadICS(calTitle, item.date, calDesc)} title="Download .ics for Outlook" style={{ fontSize: 11, color: "var(--teal)", background: "none", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", fontFamily: "sans-serif", fontWeight: 600, cursor: "pointer" }}>iCal</button>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmt(item.date)}{item.dateEnd ? ` \u2013 ${fmt(item.dateEnd)}` : ""}</div>
+            <div style={{ fontSize: 12, color: "var(--textLight)", marginTop: 1 }}>{item.desc}</div>
+          </div>
+        </div>
+      );
+    };
+
+    const Card = ({ children, accent }) => (
+      <div className="card-transition" style={{ background: "var(--cardBg)", borderRadius: 12, border: "1px solid var(--border)", borderLeft: accent ? `4px solid ${accent}` : "1px solid var(--border)", boxShadow: "0 2px 12px rgba(42,122,111,0.07)", padding: 24, marginTop: 20 }}>
+        {children}
+      </div>
+    );
+
+    const Label = ({ children, tooltip }) => (
+      <label style={{ display: "flex", alignItems: "center", fontWeight: 600, fontSize: 13, color: "var(--tealDark)", marginBottom: 6, letterSpacing: 0.3 }}>
+        {children}
+        {tooltip && <Tooltip term={tooltip}>{TERMS[tooltip]}</Tooltip>}
+      </label>
+    );
+
+    const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, color: "var(--text)", background: "var(--inputBg)", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif", transition: "border-color 0.2s" };
+
+    const SmallBtn = ({ onClick, children, title, style: extraStyle }) => (
+      <button className="btn-press no-print" onClick={onClick} title={title} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif", display: "inline-flex", alignItems: "center", gap: 5, ...extraStyle }}>
+        {children}
+      </button>
+    );
+
+    /* ───────── validation ───────── */
+    function validateInputs(tab, hireDate, avgHours, breakWeeks) {
+      const errors = [];
+      if (tab === "new_hire") {
+        if (!hireDate) errors.push("Please enter a hire date.");
+        if (!avgHours) errors.push("Please enter average weekly hours.");
+        else {
+          const h = parseFloat(avgHours);
+          if (isNaN(h) || h < 0) errors.push("Hours must be a positive number.");
+          if (h > 80) errors.push("Hours seem too high \u2014 double check the number.");
+        }
+        if (hireDate) {
+          const d = new Date(hireDate);
+          if (d.getFullYear() < 2010) errors.push("Hire date seems too far in the past.");
+          if (d > addMonths(new Date(), 12)) errors.push("Hire date is over a year in the future \u2014 double check.");
+        }
+      }
+      if (tab === "break") {
+        if (!breakWeeks) errors.push("Please enter break length in weeks.");
+        else {
+          const w = parseInt(breakWeeks);
+          if (isNaN(w) || w < 1) errors.push("Break must be at least 1 week.");
+          if (w > 104) errors.push("Break over 2 years \u2014 double check.");
+        }
+      }
+      return errors;
+    }
+
+    /* ───────── result component ───────── */
+    function Result({ result, employeeName, onCopy, onPrint }) {
+      if (!result) return null;
+
+      const nameTag = employeeName ? (
+        <div className="print-only" style={{ fontSize: 14, fontWeight: 700, color: "var(--tealDark)", marginBottom: 8, fontFamily: "sans-serif" }}>Employee: {employeeName}</div>
+      ) : null;
+
+      const actionBar = (
+        <div className="no-print" style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          <SmallBtn onClick={onCopy} title="Copy result as text">📋 Copy Summary</SmallBtn>
+          <SmallBtn onClick={onPrint} title="Print / Save as PDF">🖨 Print / PDF</SmallBtn>
+        </div>
+      );
+
+      if (result.type === "full_time") return (
+        <Card accent="var(--teal)">
+          {nameTag}
+          {employeeName && <div className="no-print" style={{ fontSize: 13, color: "var(--tealDark)", fontWeight: 600, marginBottom: 6, fontFamily: "sans-serif" }}>Employee: {employeeName}</div>}
+          <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)", marginBottom: 8 }}>Full-Time — Benefits-Eligible at Hire</div>
+          <p style={{ fontSize: 14, color: "var(--text)", margin: "0 0 12px", lineHeight: 1.6 }}>{result.notes}</p>
+          <Badge type="action" text="Offer health insurance at time of hire" />
+          {actionBar}
+        </Card>
+      );
+
+      if (result.type === "variable") {
+        const urgent = result.daysUntil <= 30 && result.daysUntil > 0;
+        const overdue = result.daysUntil <= 0;
+        return (
+          <Card accent="var(--tealMid)">
+            {nameTag}
+            {employeeName && <div className="no-print" style={{ fontSize: 13, color: "var(--tealDark)", fontWeight: 600, marginBottom: 6, fontFamily: "sans-serif" }}>Employee: {employeeName}</div>}
+            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)", marginBottom: 4 }}>
+              Variable-Hour New Hire — Measurement Required
+              <Tooltip term="IMP">{TERMS.IMP}</Tooltip>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--textLight)", margin: "0 0 12px", lineHeight: 1.6 }}>Employee must be measured during the Initial Measurement Period before offering coverage.</p>
+            {urgent && <Badge type="urgent" text={`Offer deadline in ${result.daysUntil} days \u2014 act now`} />}
+            {overdue && <Badge type="overdue" text="Offer window may have passed \u2014 review immediately" />}
+            <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "var(--gray)", letterSpacing: 1, marginBottom: 12, textTransform: "uppercase", fontFamily: "sans-serif" }}>Timeline</div>
+              {result.timeline.map((item, i) => <TimelineRow key={i} item={item} last={i === result.timeline.length - 1} employeeName={employeeName} />)}
+            </div>
+            {result.daysUntil > 0 && <div style={{ background: "var(--tealLight)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--tealDark)", fontWeight: 600, marginTop: 8 }}>{result.daysUntil} days until offer deadline</div>}
+            {actionBar}
+          </Card>
+        );
+      }
+
+      if (result.type === "ongoing") return (
+        <Card accent="var(--tealMid)">
+          {nameTag}
+          {employeeName && <div className="no-print" style={{ fontSize: 13, color: "var(--tealDark)", fontWeight: 600, marginBottom: 6, fontFamily: "sans-serif" }}>Employee: {employeeName}</div>}
+          <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)", marginBottom: 4 }}>
+            Ongoing Employee — Current Period: {result.smp.label}
+            <Tooltip term="SMP">{TERMS.SMP}</Tooltip>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--textLight)", margin: "0 0 16px", lineHeight: 1.6 }}>Active measurement and stability windows based on today's date.</p>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "var(--gray)", letterSpacing: 1, marginBottom: 12, textTransform: "uppercase", fontFamily: "sans-serif" }}>Timeline</div>
+            {result.timeline.map((item, i) => <TimelineRow key={i} item={item} last={i === result.timeline.length - 1} employeeName={employeeName} />)}
+          </div>
+          {actionBar}
+        </Card>
+      );
+
+      if (result.type === "break") {
+        const colors = { no_break: "var(--teal)", parity: "var(--warning)", new_employee: "var(--error)" };
+        const bgColors = { no_break: "var(--tealLight)", parity: "var(--warningLight)", new_employee: "var(--errorLight)" };
+        return (
+          <Card accent={colors[result.outcome]}>
+            {nameTag}
+            {employeeName && <div className="no-print" style={{ fontSize: 13, color: "var(--tealDark)", fontWeight: 600, marginBottom: 6, fontFamily: "sans-serif" }}>Employee: {employeeName}</div>}
+            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)", marginBottom: 8 }}>
+              Break-in-Service: {result.weeks} Weeks
+              <Tooltip term="Parity">{TERMS.Parity}</Tooltip>
+            </div>
+            <div style={{ background: bgColors[result.outcome], borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: colors[result.outcome] }}>{result.detail}</div>
+              <div style={{ fontSize: 13, color: "var(--text)", marginTop: 4, lineHeight: 1.6 }}>{result.treatment}</div>
+            </div>
+            {result.outcome === "new_employee" && <Badge type="urgent" text="Restart IMP/ISP \u2014 use New Hire tab" />}
+            {actionBar}
+          </Card>
+        );
+      }
+      return null;
+    }
+
+    /* ───────── History panel ───────── */
+    function HistoryPanel({ onClose, onLoad }) {
+      const [history, setHistory] = React.useState(loadHistory());
+
+      const handleClear = () => { clearHistory(); setHistory([]); };
+
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", justifyContent: "center", alignItems: "flex-end" }} onClick={onClose}>
+          <div style={{ background: "var(--cardBg)", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 680, maxHeight: "75vh", overflow: "auto", padding: 24, paddingBottom: 40 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)" }}>Calculation History</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {history.length > 0 && <button onClick={handleClear} style={{ background: "var(--errorLight)", color: "var(--error)", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>Clear All</button>}
+                <button onClick={onClose} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>Close</button>
+              </div>
+            </div>
+            {history.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray)", fontSize: 14 }}>No calculations yet. Results will appear here after you calculate.</div>
+            ) : (
+              history.map((item, i) => (
+                <div key={i} style={{ padding: "12px 0", borderBottom: i < history.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      {item.employeeName && <div style={{ fontWeight: 700, fontSize: 13, color: "var(--tealDark)" }}>{item.employeeName}</div>}
+                      <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5, marginTop: 2 }}>{item.summary}</div>
+                      <div style={{ fontSize: 11, color: "var(--gray)", marginTop: 4, fontFamily: "sans-serif" }}>{new Date(item.timestamp).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ───────── Batch mode panel ───────── */
+    function BatchPanel({ onClose }) {
+      const [rows, setRows] = React.useState([{ name: "", hireDate: "", hours: "" }, { name: "", hireDate: "", hours: "" }, { name: "", hireDate: "", hours: "" }]);
+      const [results, setResults] = React.useState(null);
+
+      const updateRow = (i, field, val) => { const r = [...rows]; r[i][field] = val; setRows(r); };
+      const addRow = () => setRows([...rows, { name: "", hireDate: "", hours: "" }]);
+      const removeRow = (i) => { if (rows.length > 1) { const r = [...rows]; r.splice(i, 1); setRows(r); } };
+
+      const runBatch = () => {
+        const res = rows.filter(r => r.hireDate && r.hours).map(r => {
+          const calc = calcNewHire(r.hireDate, parseFloat(r.hours));
+          return { ...calc, employeeName: r.name || "Unnamed" };
+        });
+        setResults(res);
+        // Save each to history
+        res.forEach(r => saveToHistory({ employeeName: r.employeeName, tab: "new_hire", summary: r.summary }));
+      };
+
+      const copyBatch = () => {
+        if (!results) return;
+        const text = results.map(r => `${r.employeeName}: ${r.summary}`).join("\n");
+        navigator.clipboard.writeText(text);
+      };
+
+      const iStyle = { ...inputStyle, padding: "8px 10px", fontSize: 13 };
+
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", justifyContent: "center", alignItems: "flex-end" }} onClick={onClose}>
+          <div style={{ background: "var(--cardBg)", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 720, maxHeight: "85vh", overflow: "auto", padding: 24, paddingBottom: 40 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--tealDark)" }}>Batch Calculate \u2014 Multiple Employees</div>
+              <button onClick={onClose} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>Close</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--textLight)", marginBottom: 16, lineHeight: 1.6 }}>Enter multiple new hires at once. Fill in hire date and average hours for each person, then calculate all at once.</p>
+
+            {rows.map((r, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 28px", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                <div>
+                  {i === 0 && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tealDark)", marginBottom: 4, fontFamily: "sans-serif" }}>Name</div>}
+                  <input type="text" placeholder="Name" value={r.name} onChange={e => updateRow(i, "name", e.target.value)} style={iStyle} />
+                </div>
+                <div>
+                  {i === 0 && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tealDark)", marginBottom: 4, fontFamily: "sans-serif" }}>Hire Date</div>}
+                  <input type="date" value={r.hireDate} onChange={e => updateRow(i, "hireDate", e.target.value)} style={iStyle} />
+                </div>
+                <div>
+                  {i === 0 && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tealDark)", marginBottom: 4, fontFamily: "sans-serif" }}>Hours</div>}
+                  <input type="number" placeholder="Hrs" value={r.hours} onChange={e => updateRow(i, "hours", e.target.value)} min={0} max={60} style={iStyle} />
+                </div>
+                <button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: "var(--error)", fontSize: 18, cursor: "pointer", padding: "6px 0" }} title="Remove row">&times;</button>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button onClick={addRow} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>+ Add Row</button>
+              <button onClick={runBatch} style={{ background: "var(--teal)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>Calculate All</button>
+              {results && <button onClick={copyBatch} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>📋 Copy All</button>}
+            </div>
+
+            {results && (
+              <div style={{ marginTop: 20 }}>
+                {results.map((r, i) => (
+                  <div key={i} style={{ padding: "12px 14px", borderRadius: 8, background: r.type === "full_time" ? "var(--tealLight)" : "var(--offWhite)", border: "1px solid var(--border)", marginBottom: 8 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--tealDark)" }}>{r.employeeName}</div>
+                    <div style={{ fontSize: 13, color: "var(--text)", marginTop: 2, lineHeight: 1.5 }}>{r.summary}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ───────── Main App ───────── */
+    function App() {
+      const [tab, setTab] = React.useState("new_hire");
+      const [hireDate, setHireDate] = React.useState("");
+      const [avgHours, setAvgHours] = React.useState("");
+      const [breakWeeks, setBreakWeeks] = React.useState("");
+      const [employeeName, setEmployeeName] = React.useState("");
+      const [result, setResult] = React.useState(null);
+      const [errors, setErrors] = React.useState([]);
+      const [toast, setToast] = React.useState(null);
+      const [showHistory, setShowHistory] = React.useState(false);
+      const [showBatch, setShowBatch] = React.useState(false);
+      const [theme, setTheme] = React.useState(getInitialTheme);
+
+      // Apply theme to document
+      React.useEffect(() => {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("aca_theme", theme);
+        // Update theme-color meta for mobile browser chrome
+        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0A2A25" : "#0F3D37";
+      }, [theme]);
+
+      const toggleTheme = () => setTheme(t => t === "light" ? "dark" : "light");
+
+      const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+      const hoursWarning = React.useMemo(() => {
+        if (tab !== "new_hire" || !avgHours) return null;
+        const h = parseFloat(avgHours);
+        if (h >= 28 && h < 30) return "This is close to the 30-hour threshold. Monitor this employee's hours carefully \u2014 they could tip into full-time eligibility.";
+        return null;
+      }, [avgHours, tab]);
+
+      const calc = () => {
+        const errs = validateInputs(tab, hireDate, avgHours, breakWeeks);
+        setErrors(errs);
+        if (errs.length > 0) return;
+
+        let res;
+        if (tab === "new_hire" && hireDate && avgHours) res = calcNewHire(hireDate, parseFloat(avgHours));
+        else if (tab === "ongoing") res = calcOngoing();
+        else if (tab === "break" && breakWeeks) res = { type: "break", ...calcBreak(breakWeeks) };
+
+        if (res) {
+          setResult(res);
+          saveToHistory({ employeeName: employeeName || null, tab, summary: res.summary });
+        }
+      };
+
+      const reset = () => {
+        setHireDate(""); setAvgHours(""); setBreakWeeks(""); setEmployeeName("");
+        setResult(null); setErrors([]);
+      };
+
+      const copySummary = () => {
+        if (!result) return;
+        const prefix = employeeName ? `Employee: ${employeeName}\n` : "";
+        const text = prefix + result.summary + `\n\nCalculated: ${new Date().toLocaleString()}\nSource: Wabash Center ACA Calculator`;
+        navigator.clipboard.writeText(text).then(() => showToast("Copied to clipboard!"));
+      };
+
+      const printResult = () => window.print();
+
+      const switchTab = (newTab) => { setTab(newTab); setResult(null); setErrors([]); };
+
+      const btnDisabled = (tab === "new_hire" && (!hireDate || !avgHours)) || (tab === "break" && !breakWeeks);
+
+      return (
+        <div style={{ minHeight: "100vh", background: "var(--bodyBg)", fontFamily: "Georgia, serif", paddingBottom: 80 /* space for bottom nav */ }}>
+
+          {/* ── Header ── */}
+          <div className="app-header" style={{ background: theme === "dark" ? "#0A2A25" : C.tealDeep }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", padding: "16px 20px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: "var(--teal)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏥</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--tealMid)", letterSpacing: 2, textTransform: "uppercase", fontFamily: "sans-serif", fontWeight: 600 }}>Wabash Center — HR Tools</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>ACA Eligibility Calculator</div>
+                </div>
+                {/* Dark mode toggle */}
+                <button className="no-print" onClick={toggleTheme} title={`Switch to ${theme === "light" ? "dark" : "light"} mode`} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }}>
+                  {theme === "light" ? "🌙" : "☀️"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Body ── */}
+          <div style={{ maxWidth: 680, margin: "0 auto", padding: "20px 20px 60px" }}>
+
+            {/* Input card */}
+            <div className="card-transition" style={{ background: "var(--cardBg)", borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 2px 12px rgba(42,122,111,0.07)", padding: 24 }}>
+
+              {/* Employee name — always shown */}
+              <div style={{ marginBottom: 16 }}>
+                <Label>Employee Name (optional)</Label>
+                <input type="text" placeholder="e.g. Jane Smith" value={employeeName} onChange={e => setEmployeeName(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={{ height: 1, background: "var(--border)", margin: "16px 0" }} />
+
+              {tab === "new_hire" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--tealDark)", marginBottom: 4 }}>
+                  New Hire Eligibility
+                  <Tooltip term="IMP">{TERMS.IMP}</Tooltip>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--textLight)", margin: "0 0 20px", lineHeight: 1.6 }}>30+ expected hours = offer at hire. Under 30 = enters IMP/ISP measurement track.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <Label>Hire Date</Label>
+                    <input type="date" value={hireDate} onChange={e => setHireDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <Label>Avg Weekly Hours</Label>
+                    <input type="number" placeholder="e.g. 25" value={avgHours} onChange={e => setAvgHours(e.target.value)} min={0} max={80} step={0.5} style={inputStyle} />
+                  </div>
+                </div>
+                {/* Hours threshold warning */}
+                {hoursWarning && (
+                  <div style={{ background: "var(--warningLight)", border: "1px solid #F0C090", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--warning)", fontWeight: 600, marginBottom: 16, lineHeight: 1.5 }}>
+                    ⚠ {hoursWarning}
+                  </div>
+                )}
+              </>)}
+
+              {tab === "ongoing" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--tealDark)", marginBottom: 4 }}>
+                  Ongoing Employee Periods
+                  <Tooltip term="SMP">{TERMS.SMP}</Tooltip>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--textLight)", margin: "0 0 20px", lineHeight: 1.6 }}>Shows the current Standard Measurement Period, admin window, and stability period based on today's date and Wabash's Jan–Jun / Jul–Dec SMP structure.</p>
+              </>)}
+
+              {tab === "break" && (<>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--tealDark)", marginBottom: 4 }}>
+                  Break-in-Service Rules
+                  <Tooltip term="Parity">{TERMS.Parity}</Tooltip>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--textLight)", margin: "0 0 20px", lineHeight: 1.6 }}>Enter break length to determine treatment upon return.</p>
+                <div style={{ marginBottom: 16, background: "var(--tealLight)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--tealDark)", lineHeight: 1.8 }}>
+                  &lt;4 weeks → No break recognized<br />4–12 weeks → Parity rule<br />13+ weeks → New employee
+                </div>
+                <div style={{ maxWidth: 220, marginBottom: 16 }}>
+                  <Label>Break Length (Weeks)</Label>
+                  <input type="number" placeholder="e.g. 6" value={breakWeeks} onChange={e => setBreakWeeks(e.target.value)} min={1} max={104} style={inputStyle} />
+                </div>
+              </>)}
+
+              {/* Validation errors */}
+              {errors.length > 0 && (
+                <div style={{ background: "var(--errorLight)", border: "1px solid #F5C6C2", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+                  {errors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "var(--error)", fontWeight: 600, lineHeight: 1.6 }}>{e}</div>)}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn-press" onClick={calc} disabled={btnDisabled} style={{ background: btnDisabled ? "var(--gray)" : "var(--teal)", color: "#fff", border: "none", borderRadius: 8, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: btnDisabled ? "not-allowed" : "pointer", fontFamily: "sans-serif", letterSpacing: 0.3 }}>
+                  {tab === "ongoing" ? "Show Current Periods →" : "Calculate →"}
+                </button>
+                {(hireDate || avgHours || breakWeeks || employeeName) && (
+                  <button className="btn-press no-print" onClick={reset} style={{ background: "var(--tealLight)", color: "var(--teal)", border: "1px solid var(--border)", borderRadius: 8, padding: "11px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif" }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Result */}
+            <Result result={result} employeeName={employeeName} onCopy={copySummary} onPrint={printResult} />
+
+            {/* Disclaimer */}
+            <div className="app-footer card-transition" style={{ marginTop: 28, padding: "12px 16px", background: "var(--cardBg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 11, color: "var(--gray)", lineHeight: 1.6, fontFamily: "sans-serif" }}>
+              <strong>Note:</strong> Reflects Wabash Center's internal ACA thresholds (IMP 3 mo, ISP 6 mo, SMP Jan–Jun / Jul–Dec, Stability 6 mo). Confirm edge cases with HR leadership. Not legal advice.
+            </div>
+
+            {/* Add to home screen prompt — only shown on mobile */}
+            <div className="no-print card-transition" style={{ marginTop: 16, padding: "12px 16px", background: "var(--tealLight)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, color: "var(--tealDark)", lineHeight: 1.7, fontFamily: "sans-serif" }}>
+              <strong>Install as App:</strong> On iPhone, tap the Share button (box with arrow) → "Add to Home Screen." On Android, tap the menu (three dots) → "Add to Home Screen." This gives you an app icon and full-screen experience!
+            </div>
+          </div>
+
+          {/* ── Bottom Navigation Bar (app-like) ── */}
+          <div className="bottom-nav no-print">
+            <button className={tab === "new_hire" ? "active" : ""} onClick={() => switchTab("new_hire")}>
+              <span className="nav-icon">👤</span>New Hire
+            </button>
+            <button className={tab === "ongoing" ? "active" : ""} onClick={() => switchTab("ongoing")}>
+              <span className="nav-icon">📊</span>Ongoing
+            </button>
+            <button className={tab === "break" ? "active" : ""} onClick={() => switchTab("break")}>
+              <span className="nav-icon">⏸</span>Break
+            </button>
+            <button onClick={() => setShowBatch(true)}>
+              <span className="nav-icon">👥</span>Batch
+            </button>
+            <button onClick={() => setShowHistory(true)}>
+              <span className="nav-icon">📋</span>History
+            </button>
+          </div>
+
+          {/* ── Toast notification ── */}
+          {toast && <div className="toast">{toast}</div>}
+
+          {/* ── Panels ── */}
+          {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
+          {showBatch && <BatchPanel onClose={() => setShowBatch(false)} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
